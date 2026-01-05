@@ -1,65 +1,171 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+type LayoutSpec = {
+  format: string;
+  layout: string[];
+  safe_area: string;
+  typography: string;
+};
+
+type ApiResponse =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      image_prompt: string;
+      applied_rules: string[];
+      violations: string[];
+      score: number;
+      layout_spec: LayoutSpec;
+    };
 
 export default function Home() {
+  const [briefing, setBriefing] = useState("");
+  const [brandRules, setBrandRules] = useState("");
+  const [task, setTask] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ApiResponse | null>(null);
+
+  async function onGenerate() {
+    setLoading(true);
+    setData(null);
+
+    const res = await fetch("/api/consistency", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ briefing, brandRules, task }),
+    });
+
+    const json = (await res.json()) as ApiResponse;
+    setData(json);
+    setLoading(false);
+  }
+
+  async function copy(text: string) {
+    await navigator.clipboard.writeText(text);
+    alert("Copied!");
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen bg-zinc-50 p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold">Consistency Agent (PoC)</h1>
+          <p className="text-zinc-600">
+            Briefing → Prompt → Consistency check (score + violations). (Nog zonder AI)
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        </header>
+
+        <div className="grid gap-4 rounded-xl bg-white p-4 shadow">
+          <label className="space-y-2">
+            <div className="font-medium">Briefing</div>
+            <textarea
+              className="h-24 w-full rounded-lg border p-3"
+              value={briefing}
+              onChange={(e) => setBriefing(e.target.value)}
+              placeholder="Wat is het doel, doelgroep, context?"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </label>
+
+          <label className="space-y-2">
+            <div className="font-medium">Brand & Style Rules</div>
+            <textarea
+              className="h-28 w-full rounded-lg border p-3"
+              value={brandRules}
+              onChange={(e) => setBrandRules(e.target.value)}
+              placeholder="Bijv:\nTone: helder, professioneel\nDo not use: neon, glitch\nKeywords: clean, minimal, premium"
+            />
+          </label>
+
+          <label className="space-y-2">
+            <div className="font-medium">Task</div>
+            <input
+              className="w-full rounded-lg border p-3"
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="Bijv: Maak een image prompt voor een hero banner"
+            />
+          </label>
+
+          <button
+            onClick={onGenerate}
+            disabled={loading}
+            className="rounded-lg bg-black px-4 py-3 font-medium text-white disabled:opacity-60"
           >
-            Documentation
-          </a>
+            {loading ? "Generating..." : "Generate"}
+          </button>
         </div>
-      </main>
-    </div>
+
+        {data && !data.ok && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+            Error: {data.error}
+          </div>
+        )}
+
+        {data && data.ok && (
+          <div className="space-y-4 rounded-xl bg-white p-4 shadow">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold">Result</div>
+              <div className="rounded-full bg-zinc-100 px-3 py-1 text-sm">
+                Score: <span className="font-semibold">{data.score}</span>/100
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Image prompt</div>
+              <pre className="whitespace-pre-wrap rounded-lg border bg-zinc-50 p-3 text-sm">
+                {data.image_prompt}
+              </pre>
+              <button
+                className="rounded-lg border px-3 py-2 text-sm"
+                onClick={() => copy(data.image_prompt)}
+              >
+                Copy prompt
+              </button>
+            </div>
+
+<div className="space-y-2">
+  <div className="font-medium">Layout / Template spec</div>
+  <pre className="whitespace-pre-wrap rounded-lg border bg-zinc-50 p-3 text-sm">
+    {JSON.stringify(data.layout_spec, null, 2)}
+  </pre>
+  <button
+    className="rounded-lg border px-3 py-2 text-sm"
+    onClick={() =>
+      copy(JSON.stringify(data.layout_spec, null, 2))
+    }
+  >
+    Copy layout spec
+  </button>
+</div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="font-medium">Applied rules</div>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
+                  {data.applied_rules.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <div className="font-medium">Violations / warnings</div>
+                {data.violations.length === 0 ? (
+                  <p className="mt-2 text-sm text-zinc-600">None ✅</p>
+                ) : (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
+                    {data.violations.map((v, i) => (
+                      <li key={i}>{v}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
